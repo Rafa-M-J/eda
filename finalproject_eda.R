@@ -3,8 +3,7 @@ library(tidyverse)
 library(ggplot2)
 
 # 데이터 불러오기
-path = "/Users/jieunpark/Desktop/25-2/25-2 EDA/통합df.csv"
-data = read.csv(path, fileEncoding = "UTF-8")
+data = read.csv("data_298.csv", fileEncoding = "UTF-8")
 data
 
 unique(data$질병분류_22)
@@ -12,7 +11,7 @@ unique(data$진료형태)
 unique(data$연도)
 
 # exploration
-data_sample = data |> filter(연도 == 2023, 진료형태 == "외래　O.P")
+data_sample = data |> filter(연도 == 2023, 진료형태 == "외래")
 
 age_cost <- data_sample |>
   group_by(연령, 질병분류_22) |>

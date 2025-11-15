@@ -1,0 +1,169 @@
+---
+title: "data_visualize"
+author: "Jieun Park"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document:
+    latex_engine: xelatex
+  html_document: default
+mainfont: NanumGothic
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+theme_set(theme_bw(base_family = "NanumGothic"))
+
+data <- read.csv("data_22.csv")
+head(data)
+```
+
+## [A] 22개 질병코드 살펴보기
+
+### 1. 가장 비싼 병 (고비용 질병)
+
+```{r, fig.width=12, fig.height=14}
+# 0) 연도 & 질병분류_22로 group
+df_grouped <- data |>
+  group_by(연도, 질병분류_22) |>
+  summarise(
+    진료비 = sum(진료비, na.rm = TRUE),
+    진료실인원수 = sum(진료실인원수, na.rm = TRUE),
+    입내원일수 = sum(입내원일수, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    진료비_1인당 = 진료비 / 진료실인원수,
+    입내원일수_1인당 = 입내원일수 / 진료실인원수
+  )
+
+# 1) 2023년 기준으로 질병분류 순서 뽑기
+disease_levels_2023 <- df_grouped |>
+  filter(연도 == 2023) |>
+  arrange(진료비_1인당) |>
+  pull(질병분류_22) |>
+  as.character() |>      # 혹시 모를 factor → 문자 변환
+  unique()
+
+# 2) 이 순서를 factor 레벨로 고정
+df_grouped <- df_grouped |>
+  mutate(
+    질병분류_22 = factor(as.character(질병분류_22),
+                     levels = disease_levels_2023)
+  )
+
+# 3) 연도별 22대 질병분류의 1인당 진료비 plot!
+ggplot(df_grouped,
+       aes(x = 질병분류_22, y = 진료비_1인당)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ 연도) +
+  labs(
+    x = "22대 질병분류",
+    y = "1인당 진료비",
+    title = "연도별 22대 질병분류 1인당 진료비"
+  )
+```
+- 최근 4개년은 16번(주산기에 기원한 특정병태)이 1인당 진료비가 가장 높음. 과거로 갈수록 2번(신생물)이 가장 높았음
+- 16번이 08년도부터 23년도까지 꾸준히 높아지고 2번과의 격차도 벌어지는데 원인이 뭘까? 신생아들의 질병에 대한 진료비가 높아진건지(의료 신기술 발전..?)? 엄마아빠가 애기들한테 돈을 많이 써서도 병을 낫게 하려고 했던 건지?
+
+### 2. 가장 오랫동안 아픈 병 (만성적 질환) 
+-> 나는 이거는 질병의 '중증도'와도 관련있는 것 같아
+
+```{r, fig.width=12, fig.height=14}
+# 1) 2023년 기준으로 질병분류 순서 뽑기
+disease_levels_2023 <- df_grouped |>
+  filter(연도 == 2023) |>
+  arrange(입내원일수_1인당) |>
+  pull(질병분류_22) |>
+  as.character() |>      # 혹시 모를 factor → 문자 변환
+  unique()
+
+# 2) 이 순서를 factor 레벨로 고정
+df_grouped <- df_grouped |>
+  mutate(
+    질병분류_22 = factor(as.character(질병분류_22),
+                     levels = disease_levels_2023)
+  )
+
+# 3) plot!
+ggplot(df_grouped,
+       aes(x = 질병분류_22, y = 입내원일수_1인당)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ 연도) +
+  labs(
+    x = "22대 질병분류",
+    y = "1인당 입내원일수",
+    title = "연도별 22대 질병분류 1인당 입내원일수"
+  )
+```
+- 5번(정신 및 행동장애)이 연도 상관 없이 압도적이네.. 치매 환자 분들 중 요양병원에 오래 계신 분들 많아서 그런가? ㅠㅠ
+- 6번(신경계의 질환), 16번(주산기에 기원한 특정병태)은 초기에는 별로 안높았는데 점점 높아졌다
+  - 16번은 앞에서 1인당 진료비도 높아지고 입내원일수도 높아진걸 보면 뭔가.. 뭔가 있다 !! 아기들에게 무슨 일이
+  
+#### 2-1. 5번 상세
+  
+```{r, fig.width=12, fig.height=14}
+data_298 <- read.csv("data_298.csv") 
+data_298_6 <- data_298 |>
+  filter(질병분류_22 == 5) |>
+  mutate(질병분류 = factor(질병분류)) |>
+  group_by(연도, 질병분류) |>
+  summarise(
+    진료실인원수 = sum(진료실인원수, na.rm = TRUE),
+    입내원일수 = sum(입내원일수, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    입내원일수_1인당 = 입내원일수 / 진료실인원수
+  )
+
+ggplot(data_298_6,
+       aes(x = 질병분류, y = 입내원일수_1인당)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ 연도) +
+  labs(
+    x = "5번(신경계의 질환) 세부 질환",
+    y = "1인당 입내원일수",
+    title = "5번(신경계의 질환) 세부 질환별 1인당 입내원일수"
+  )
+
+```
+- 제일 높은 112번은 아니나 다를까 치매 !
+- 상대적으로 높은 113(알콜 사용에 의한 정신 및 행동장애), 115(정신분열증, 분열형 및 망상성 장애), 118(정신 지연)도 있다.. 아직 잘 모르지만 정신병원에 있는 환자들이 대체로 입내원일수가 긴 것 같다..?
+
+### 3. 가장 흔한 병
+```{r, fig.width=12, fig.height=14}
+# 1) 2023년 기준으로 질병분류 순서 뽑기
+disease_levels_2023 <- df_grouped |>
+  filter(연도 == 2023) |>
+  arrange(진료실인원수) |>
+  pull(질병분류_22) |>
+  as.character() |>      # 혹시 모를 factor → 문자 변환
+  unique()
+
+# 2) 이 순서를 factor 레벨로 고정
+df_grouped <- df_grouped |>
+  mutate(
+    질병분류_22 = factor(as.character(질병분류_22),
+                     levels = disease_levels_2023)
+  )
+
+# 3) plot!
+ggplot(df_grouped,
+       aes(x = 질병분류_22, y = 진료실인원수)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ 연도) +
+  labs(
+    x = "22대 질병분류",
+    y = "진료실인원수",
+    title = "연도별 22대 질병분류 진료실인원수"
+  )
+```
+- 2008년 1번(특정감염성 및 기생충성 질환)은 뭐지? 우리 초1때 뭐 있었나? 아니면 데이터 오류?
+- 전반적으로는 top3가 압도적인 것 같음. 10(호흡기계의 질환), 11(소화기계의 질환), 13(근골격계 및 결합조직의 질환)
