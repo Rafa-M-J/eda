@@ -18,6 +18,7 @@ mainfont: NanumGothic
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
+library(patchwork)
 
 theme_set(theme_bw(base_family = "NanumGothic"))
 
@@ -116,7 +117,7 @@ ggplot(df_grouped,
   
 ```{r, fig.width=12, fig.height=14}
 data_298 <- read.csv("data_298.csv") 
-data_298_6 <- data_298 |>
+data_298_5 <- data_298 |>
   filter(질병분류_22 == 5) |>
   mutate(질병분류 = factor(질병분류)) |>
   group_by(연도, 질병분류) |>
@@ -129,7 +130,7 @@ data_298_6 <- data_298 |>
     입내원일수_1인당 = 입내원일수 / 진료실인원수
   )
 
-ggplot(data_298_6,
+ggplot(data_298_5,
        aes(x = 질병분류, y = 입내원일수_1인당)) +
   geom_col() +
   coord_flip() +
@@ -175,3 +176,340 @@ ggplot(df_grouped,
 ```
 - 2008년 1번(특정감염성 및 기생충성 질환)은 뭐지? 우리 초1때 뭐 있었나? 아니면 데이터 오류?
 - 전반적으로는 top3가 압도적인 것 같음. 10(호흡기계의 질환), 11(소화기계의 질환), 13(근골격계 및 결합조직의 질환)
+
+
+## 5번 정신 및 행동장애 - 112번 치매 관련
+
+1. 인구통계 관련
+먼저 고령 인구의 증가 추이를 살펴봅시다
+
+```{r}
+df_population = read.csv("연령별 인구수.csv", check.names = FALSE)  # check.names = FALSE: 컬럼명 안깨지게
+df_population
+
+# 고령 인구 수 추이
+df_population <- df_population |>
+  mutate(`65세 이상` = rowSums(across(`65~69세`:`100세 이상`), na.rm = TRUE))
+
+# 65세 이상 인구 추이
+ggplot(df_population, aes(x = 연도)) +
+  geom_line(aes(y = `총 인구수`, color = "총 인구수"), linewidth = 1.2) +
+  geom_point(aes(y = `총 인구수`, color = "총 인구수"), size = 2) +
+  
+  geom_line(aes(y = `65세 이상`, color = "65세 이상"), linewidth = 1.2) +
+  geom_point(aes(y = `65세 이상`, color = "65세 이상"), size = 2) +
+  
+  scale_color_manual(values = c(
+    "총 인구수" = "steelblue",
+    "65세 이상" = "firebrick"
+  )) +
+  
+  scale_y_continuous(labels = scales::comma) +
+  
+  labs(
+    title = "총 인구수 및 65세 이상 인구 추세",
+    x = "연도",
+    y = "인구수",
+    color = "구분"
+  )
+```
+- 총인구는 증가하다 2020년 기점으로 감소하는듯 하나, 고령자는 꾸준히 증가
+
+```{r}
+# 65세 이상 인구, 총 인구 증감률 추이
+df_population <- df_population |>
+  arrange(연도) |>
+  mutate(
+    `65세 증감률` = (`65세 이상` - lag(`65세 이상`)) / lag(`65세 이상`) * 100,
+    `총인구 증감률` = (`총 인구수` - lag(`총 인구수`)) / lag(`총 인구수`) * 100
+  )
+
+ggplot(df_population, aes(x = 연도)) +
+  geom_line(aes(y = `65세 증감률`, color = "65세 증감률"), linewidth = 1.2) +
+  geom_point(aes(y = `65세 증감률`, color = "65세 증감률"), size = 2) +
+  geom_line(aes(y = `총인구 증감률`, color = "총인구 증감률"), linewidth = 1.2) +
+  geom_point(aes(y = `총인구 증감률`, color = "총인구 증감률"), size = 2) +
+  
+  scale_color_manual(values = c(
+    "65세 증감률" = "firebrick",
+    "총인구 증감률" = "steelblue"
+  )) +
+  
+  scale_y_continuous(
+    labels = scales::comma
+  ) +
+  labs(
+    title = "65세 이상 & 총인구 증감률 추이",
+    x = "연도",
+    y = "증감률 (%)",
+    color = "구분"
+  )
+```
+- 증감률로 봤을 때도 확연하게 차이가 드러남. 총인구는 증감률이 점점 감소해서 20년부터는 음수인데, 고령층은 절대적인 인구도, 증감률도 모두 상승하고 있다.. 속도와 가속도가 모두 증가하는 무서운 현실
+
+```{r}
+# 65세 이상 인구 비율 추이
+df_population <- df_population |>
+  mutate(`65세 비율` = (`65세 이상` / `총 인구수`) * 100)
+
+ggplot(df_population, aes(x = 연도, y = `65세 비율`)) +
+  geom_line(color = "firebrick", linewidth = 1.2) +
+  geom_point(color = "firebrick", size = 2) +
+  labs(
+    title = "65세 이상 인구 비율 추이",
+    x = "연도",
+    y = "65세 이상 비율 (%)"
+  )
+```
+- 역시 선명한 우상향
+- cf. 고령자 인구 비율이 7% 이상이면 고령화 사회, 14% 이상이면 고령 사회, 20% 이상이면 초고령 사회인데 한국은 17년부터 고령 사회, 25년부터 초고령사회임
+
+
+그렇다면 5번은 어떨까요
+
+```{r, fig.width=14, fig.height=5}
+# -----------------------------
+# 1) 데이터 준비
+# -----------------------------
+
+# (a) 전체 진료실인원수 + 5번 진료실인원수 추이
+df_5 <- df_grouped |> 
+  filter(질병분류_22 == 5) |> 
+  select(연도, 진료실인원수)
+
+df_total <- df_grouped |> 
+  group_by(연도) |> 
+  summarise(전체_진료실인원수 = sum(진료실인원수, na.rm = TRUE))
+
+df_merge <- df_5 |> 
+  left_join(df_total, by = "연도") |>
+  rename(`5번_진료실인원수` = 진료실인원수)
+
+
+# (b) 전체/5번 증감률 계산
+df_rate <- df_grouped |>
+  group_by(연도) |>
+  summarise(
+    전체_진료실인원수 = sum(진료실인원수, na.rm = TRUE),
+    `5번_진료실인원수` = sum(진료실인원수[질병분류_22 == 5], na.rm = TRUE)
+  ) |>
+  arrange(연도) |>
+  mutate(
+    전체_증감률 = (전체_진료실인원수 - lag(전체_진료실인원수)) /
+                  lag(전체_진료실인원수) * 100,
+    `5번_증감률` = (`5번_진료실인원수` - lag(`5번_진료실인원수`)) /
+                   lag(`5번_진료실인원수`) * 100
+  )
+
+# -----------------------------
+# 2) 플롯 2개 만들기
+# -----------------------------
+
+# (1) 진료실인원수 추이
+p1 <- ggplot(df_merge, aes(x = 연도)) +
+  geom_line(aes(y = 전체_진료실인원수, color = "전체 진료실인원수"), linewidth = 1.2) +
+  geom_point(aes(y = 전체_진료실인원수, color = "전체 진료실인원수"), size = 2) +
+  
+  geom_line(aes(y = `5번_진료실인원수`, color = "5번 질병분류 진료실인원수"), linewidth = 1.2) +
+  geom_point(aes(y = `5번_진료실인원수`, color = "5번 질병분류 진료실인원수"), size = 2) +
+  
+  scale_color_manual(values = c(
+    "전체 진료실인원수" = "steelblue",
+    "5번 질병분류 진료실인원수" = "firebrick"
+  )) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "전체 vs 5번 질병분류 진료실인원수 추이",
+    x = "연도",
+    y = "진료실인원수",
+    color = "구분"
+  )
+
+# (2) 증감률 추이
+p2 <- ggplot(df_rate, aes(x = 연도)) +
+  geom_line(aes(y = `5번_증감률`, color = "5번 질병분류 증감률"), linewidth = 1.2) +
+  geom_point(aes(y = `5번_증감률`, color = "5번 질병분류 증감률"), size = 2) +
+  
+  geom_line(aes(y = 전체_증감률, color = "전체 진료실인원수 증감률"), linewidth = 1.2) +
+  geom_point(aes(y = 전체_증감률, color = "전체 진료실인원수 증감률"), size = 2) +
+  
+  scale_color_manual(values = c(
+    "5번 질병분류 증감률" = "firebrick",
+    "전체 진료실인원수 증감률" = "steelblue"
+  )) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "전체 vs 5번 질병분류 진료실인원수 증감률 추이",
+    x = "연도",
+    y = "증감률 (%)",
+    color = "구분"
+  )
+
+# -----------------------------
+# 3) 좌우 배치 출력
+# -----------------------------
+p1 | p2
+```
+잘 안보이는군요 .. 전체 진료실인원수 빼고 그냥 5번만 따로 봅시다..
+
+```{r, fig.width=14, fig.height=5}
+df_5 <- df_grouped |>
+  filter(질병분류_22 == 5) |>
+  group_by(연도) |>
+  summarise(진료실인원수 = sum(진료실인원수, na.rm = TRUE)) |>
+  arrange(연도) |>
+  mutate(
+    증감률 = (진료실인원수 - lag(진료실인원수)) / lag(진료실인원수) * 100
+  )
+
+# (1) 진료실인원수 추이
+p1 <- ggplot(df_5, aes(x = 연도, y = 진료실인원수)) +
+  geom_line(color = "firebrick", linewidth = 1.2) +
+  geom_point(color = "firebrick", size = 2) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "질병분류 5번 진료실인원수 추이",
+    x = "연도",
+    y = "진료실인원수(명)"
+  ) +
+  theme_minimal(base_family = "AppleGothic")
+
+
+# (2) 증감률 추이
+p2 <- ggplot(df_5, aes(x = 연도, y = 증감률)) +
+  geom_line(color = "firebrick", linewidth = 1.2) +
+  geom_point(color = "firebrick", size = 2) +
+  labs(
+    title = "질병분류 5번 진료실인원수 증감률 추이",
+    x = "연도",
+    y = "증감률 (%)"
+  ) +
+  theme_minimal(base_family = "AppleGothic")
+
+p1 | p2
+```
+good
+
+이제 고령자 추이와 5번 질병분류 진료실인원수 추이를 비교해봅시다
+
+```{r, fig.width=14, fig.height=5}
+# 65세 이상만 추출
+df_pop <- df_population |> 
+  select(연도, `65세 이상`) |> 
+  arrange(연도)
+
+# 5번 진료실인원수와 고령자 인구 merge
+df_compare <- df_5 |> 
+  select(연도, 진료실인원수) |>
+  left_join(df_pop, by = "연도")
+
+# 절댓값 비교
+p1 <- df_compare |>
+  pivot_longer(cols = c(진료실인원수, `65세 이상`),
+                names_to = "변수",
+                values_to = "값") |>
+  ggplot(aes(x = 연도, y = 값, color = 변수)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_manual(values = c("steelblue", "firebrick")) +
+  labs(
+    title = "5번 진료실인원수 vs 65세 이상 인구수",
+    x = "연도", y = "인원수", color = "구분"
+  )
+
+# 증감률 비교
+df_rate <- df_compare |>
+  arrange(연도) |>
+  mutate(
+    진료실_증감률 = (진료실인원수 - lag(진료실인원수)) /
+                     lag(진료실인원수) * 100,
+    고령자_증감률 = (`65세 이상` - lag(`65세 이상`)) /
+                     lag(`65세 이상`) * 100
+  )
+
+p2 <- df_rate |>
+  select(연도, 진료실_증감률, 고령자_증감률) |>
+  pivot_longer(cols = c(진료실_증감률, 고령자_증감률),
+               names_to = "변수", values_to = "증감률") |>
+  ggplot(aes(x = 연도, y = 증감률, color = 변수)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(
+    values = c(
+      "진료실_증감률" = "firebrick",
+      "고령자_증감률" = "steelblue"
+    )
+  ) +
+  labs(
+    title = "5번 진료실인원수 증감률 vs 65세 이상 인구 증감률",
+    x = "연도", y = "증감률(%)", color = "구분"
+  )
+
+
+p1 | p2
+```
+좀 아쉬워요.. 298에서 112번만 뽑아보겠습니다
+
+```{r, fig.width=14, fig.height=5}
+df_pop <- df_population |>
+  select(연도, `65세 이상`) |>
+  arrange(연도)
+
+df_112 <- data_298_5 |>
+  filter(질병분류 == 112) |>
+  select(연도, 진료실인원수) 
+
+df_compare_112 <- df_112 |>
+  left_join(df_pop, by = "연도")
+
+
+p1 <- df_compare_112 |>
+  pivot_longer(
+    cols = c(진료실인원수, `65세 이상`),
+    names_to = "변수",
+    values_to = "값"
+  ) |>
+  ggplot(aes(x = 연도, y = 값, color = 변수)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_manual(values = c(
+    "진료실인원수" = "firebrick",
+    "65세 이상"   = "steelblue"
+  )) +
+  labs(
+    title = "질병분류 112번(치매) 진료실인원수 vs 65세 이상 인구수",
+    x = "연도", y = "인원수", color = "구분"
+  )
+
+df_rate_112 <- df_compare_112 |>
+  arrange(연도) |>
+  mutate(
+    진료실_증가율 = (진료실인원수 - lag(진료실인원수)) /
+                     lag(진료실인원수) * 100,
+    고령자_증가율 = (`65세 이상` - lag(`65세 이상`)) /
+                     lag(`65세 이상`) * 100
+  )
+
+p2 <- df_rate_112 |>
+  select(연도, 진료실_증가율, 고령자_증가율) |>
+  pivot_longer(
+    cols = c(진료실_증가율, 고령자_증가율),
+    names_to = "변수",
+    values_to = "증가율"
+  ) |>
+  ggplot(aes(x = 연도, y = 증가율, color = 변수)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c(
+    "진료실_증가율" = "firebrick",
+    "고령자_증가율" = "steelblue"
+  )) +
+  labs(
+    title = "질병분류 112번(치매) 진료실인원수 증가율 vs 65세 이상 인구 증가율",
+    x = "연도", y = "증가율(%)", color = "구분"
+  )
+
+p1 | p2
+```
