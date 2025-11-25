@@ -78,7 +78,7 @@ ui <- navbarPage(
           selectInput(
             "sort_var",
             "Primary Sort Variable",
-            choices = base_vars,   # 또는 names(my_data)
+            choices = base_vars,
             selected = "연도"
           ),
           radioButtons(
@@ -180,17 +180,17 @@ ui <- navbarPage(
       sidebarLayout(
         sidebarPanel(
           width = 2,
-          h4("보고 싶은 결과 선택"),
+          h4("What to show"),
           radioButtons(
             "analysis_type",
             label = NULL,
             choices = c(
-              "1) 가장 비싼 병 (1인당 진료비)"                  = "cost",
-              "2) 가장 싼 병 (1인당 진료비)"            = "cheap",
-              "3) 가장 오랫동안 아픈 병 (1인당 입내원일수)"       = "chronic",
-              "4) 가장 흔한 병 (진료실 인원수)"                   = "freq",
-              "5) 가장 빠르게 유행하는 병 (환자 수 증가율)"       = "trend_patient",
-              "6) 가장 빠르게 비싸지는 병 (1인당 진료비 증가율)" = "trend_cost"
+              "가장 비싼 병 (1인당 진료비)"                  = "cost",
+              "가장 싼 병 (1인당 진료비)"            = "cheap",
+              "가장 오랫동안 아픈 병 (1인당 입내원일수)"       = "chronic",
+              "가장 흔한 병 (진료실 인원수)"                   = "freq",
+              "가장 빠르게 유행하는 병 (환자 수 증가율)"       = "trend_patient",
+              "가장 빠르게 비싸지는 병 (1인당 진료비 증가율)" = "trend_cost"
             ),
             selected = "cost"
           ),
@@ -358,39 +358,39 @@ server <- function(input, output, session) {
   ## ---- EDA 탭 ----
   ## ---- EDA 탭 공통 reactive ---------------------------------------
   
-  top_n_val <- reactive({
+  top_n_val <- eventReactive(input$run_eda, {
     n <- as.integer(input$top_n)
     if (is.na(n) || n <= 0) {
       5L        # 이상한 값 들어오면 5로 fallback
     } else {
       n
     }
-  })
+  }, ignoreNULL = FALSE)
   
   # 필터 적용된 원자료
-  filtered_data <- reactive({
+  filtered_data <- eventReactive(input$run_eda, {
     df <- my_data %>%
       filter(
         연도 >= input$year_range[1],
-        연도 <= input$year_range[2])
+        연도 <= input$year_range[2]
+      )
     
     if (!is.null(input$age_levels) && length(input$age_levels) > 0) {
       df <- df %>% filter(연령 %in% input$age_levels)
     }
     
-    # 진료형태 필터
     if (!is.null(input$treat_type) && input$treat_type != "all") {
       df <- df %>% filter(진료형태 == input$treat_type)
     }
     
-    # 질병코드 필터
     if (!is.null(input$disease_codes) && length(input$disease_codes) > 0) {
       codes <- as.integer(input$disease_codes)
       df <- df %>% filter(질병분류_22 %in% codes)
     }
     
     df
-  })
+  }, ignoreNULL = FALSE)   # 🔹 앱 처음 켰을 때 한 번은 자동으로 실행
+  
   
   # 질병별 요약 (환자수, 총진료비, 총입내원일수, 1인당 지표)
   summary_disease <- reactive({
@@ -437,14 +437,13 @@ server <- function(input, output, session) {
   
   
   ## ---- [A] 가장 비싼/오래 아픈/흔한 병 ---------------------------
+  
   output$eda_filters <- renderUI({
-    # Top N 값 기본 세팅을 위해 한 번 읽어둠 (reactive 안에서)
     top_n_default <- if (!is.null(input$top_n)) input$top_n else 5
     
     if (input$analysis_type %in% c("cost", "chronic", "freq")) {
-      # [A] 3가지 요약 분석용 필터
       tagList(
-        h4("필터 (요약 분석)"),
+        h4("Filter"),
         sliderInput(
           "year_range", "연도 선택",
           min   = min(my_data$연도, na.rm = TRUE),
@@ -462,7 +461,7 @@ server <- function(input, output, session) {
         ),
         selectInput(
           "disease_codes",
-          "질병 코드 (복수 선택 가능, 선택 없으면 전체)",
+          "질병 코드 (복수 선택 가능)",
           choices  = sort(unique(my_data$질병분류_22)),
           selected = sort(unique(my_data$질병분류_22)),
           multiple = TRUE
@@ -474,20 +473,22 @@ server <- function(input, output, session) {
                       sort(unique(my_data$진료형태))),
           selected = "all"
         ),
-        h4("Top N 선택"),
+        h4("상위 N개 선택"),
         numericInput(
           "top_n",
-          "상위 몇 개를 볼까요?",
+          "이거 왜 지우면 로딩 안되지....",
           value = top_n_default,
           min   = 1,
           step  = 1
         ),
         h4("표에서 보고 싶은 연도"),
-        uiOutput("table_year_ui")     # 🔹 이 줄 추가
+        uiOutput("table_year_ui"),
+        
+        br(),
+        actionButton("run_eda", "필터 적용하기")   # 🔹 여기 추가
       )
       
     } else {
-      # [B] 2가지 추세 분석용 필터 (연도 슬라이더는 안 씀)
       tagList(
         h4("필터 (추세 분석)"),
         selectInput(
@@ -519,7 +520,10 @@ server <- function(input, output, session) {
           value = top_n_default,
           min   = 1,
           step  = 1
-        )
+        ),
+        
+        br(),
+        actionButton("run_eda", "필터 적용하기")   # 🔹 여기도 추가
       )
     }
   })
@@ -891,20 +895,17 @@ server <- function(input, output, session) {
   ## ---- [B] 시간의 흐름에 따른 패턴/추세 --------------------------
   
   # 연도별 질병 요약 (연령/진료형태/질병코드 필터는 적용, 연도는 전체 사용)
-  trend_data <- reactive({
+  trend_data <- eventReactive(input$run_eda, {
     df <- my_data
     
-    # 연령대 필터
     if (!is.null(input$age_levels) && length(input$age_levels) > 0) {
       df <- df %>% filter(연령 %in% input$age_levels)
     }
     
-    # 진료형태 필터
     if (!is.null(input$treat_type) && input$treat_type != "all") {
       df <- df %>% filter(진료형태 == input$treat_type)
     }
     
-    # 질병코드 필터
     if (!is.null(input$disease_codes) && length(input$disease_codes) > 0) {
       codes <- as.integer(input$disease_codes)
       df <- df %>% filter(질병분류_22 %in% codes)
@@ -922,7 +923,7 @@ server <- function(input, output, session) {
       mutate(
         일인당진료비 = if_else(환자수 > 0, 총진료비 / 환자수, NA_real_)
       )
-  })
+  }, ignoreNULL = FALSE)
   
   # 환자 수 증가율
   trend_patient_summary <- reactive({
