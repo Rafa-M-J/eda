@@ -60,16 +60,37 @@ df_grouped <- df_grouped |>
                      levels = disease_levels_2023)
   )
 
-# 3) 연도별 22대 질병분류의 1인당 진료비 plot!
-ggplot(df_grouped,
-       aes(x = 질병분류_22, y = 진료비_1인당)) +
+# 3) 각 연도별 Top2(high) / Bottom10(low) 분류 컬럼 추가
+df_plot <- df_grouped |>
+  group_by(연도) |>
+  mutate(
+    rank_high = min_rank(desc(진료비_1인당)),  # 값 클수록 1,2,...
+    rank_low  = min_rank(진료비_1인당),        # 값 작을수록 1,2,...
+    color_group = case_when(
+      rank_high <= 2 ~ "상위 2개",
+      rank_low  <= 10 ~ "하위 10개",
+      TRUE ~ "기타"
+    )
+  ) |>
+  ungroup()
+
+# 4) 연도별 22대 질병분류의 1인당 진료비 plot!
+ggplot(df_plot,
+       aes(x = 질병분류_22, y = 진료비_1인당, fill = color_group)) +
   geom_col() +
   coord_flip() +
   facet_wrap(~ 연도) +
+  scale_fill_manual(
+    values = c(
+      "상위 2개" = "firebrick",
+      "하위 10개" = "steelblue",
+      "기타" = "grey80"
+    )
+  ) +
   labs(
     x = "22대 질병분류",
     y = "1인당 진료비",
-    title = "연도별 22대 질병분류 1인당 진료비"
+    title = "연도 및 22대 질병분류별 1인당 진료비"
   )
 ```
 - 최근 4개년은 16번(주산기에 기원한 특정병태)이 1인당 진료비가 가장 높음. 과거로 갈수록 2번(신생물)이 가장 높았음
@@ -106,14 +127,78 @@ ggplot(df_grouped,
   labs(
     x = "22대 질병분류",
     y = "1인당 입내원일수",
-    title = "연도별 22대 질병분류 1인당 입내원일수"
+    title = "연도 및 22대 질병분류별 1인당 입내원일수"
   )
 ```
 - 5번(정신 및 행동장애)이 연도 상관 없이 압도적이네.. 치매 환자 분들 중 요양병원에 오래 계신 분들 많아서 그런가? ㅠㅠ
 - 6번(신경계의 질환), 16번(주산기에 기원한 특정병태)은 초기에는 별로 안높았는데 점점 높아졌다
   - 16번은 앞에서 1인당 진료비도 높아지고 입내원일수도 높아진걸 보면 뭔가.. 뭔가 있다 !! 아기들에게 무슨 일이
-  
-#### 2-1. 5번 상세
+
+#### 2-1. 연도 구분 없이 하나의 플랏으로
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# 1) 연도 무시, 질병분류별 총합 계산
+plot_data <- df_grouped |>
+  group_by(질병분류_22) |>
+  summarise(
+    진료실인원수 = sum(진료실인원수, na.rm = TRUE),
+    입내원일수   = sum(입내원일수,   na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(
+    입내원일수_1인당 = 입내원일수 / 진료실인원수,
+  )
+
+# 2) Top1만 빨강, 나머지는 전부 회색
+plot_data <- plot_data |>
+  mutate(
+    rank_high = min_rank(desc(입내원일수_1인당)),
+    highlight_group = if_else(rank_high == 1, "상위 1개", "기타"),
+    질병분류_22 = reorder(질병분류_22, 입내원일수_1인당)
+  )
+
+# 3) 플랏 - Top1=빨강, Others=연회색
+ggplot(plot_data, 
+       aes(x = 질병분류_22,
+           y = 입내원일수_1인당,
+           fill = highlight_group)) +
+  geom_col(width = 0.7) +
+  geom_text(
+    aes(label = paste0(sprintf('%.1f', 입내원일수_1인당), "일")),
+    hjust = -0.1,
+    size = 3,
+    family = "NanumGothic"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "상위 1개"  = "#E74C3C",  # 빨강
+      "기타" = "gray80"   # 연회색
+    )
+  ) +
+  coord_flip() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+  labs(
+    title = "22대 질병분류별 1인당 입내원일수",
+    x = "22대 질병분류",
+    y = "1인당 입내원일수"
+  ) +
+  theme_minimal(base_family = "NanumGothic") +
+  theme(
+    legend.position = "none",
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    axis.text.y = element_text(size = 9, color = "black"),
+    axis.text.x = element_blank(),
+    plot.title = element_text(size = 16),
+  )
+
+```
+
+
+#### 2-2. 5번 상세
   
 ```{r, fig.width=12, fig.height=14}
 data_298 <- read.csv("data_298.csv") 
