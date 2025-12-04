@@ -416,8 +416,8 @@ ui <- navbarPage(
             "ts_horizon",
             "Forecast horizon (years ahead)",
             min   = 1,
-            max   = 10,
-            value = 5,
+            max   = 5,
+            value = 3,
             step  = 1
           )
         ),
@@ -1456,8 +1456,8 @@ server <- function(input, output, session) {
   # ---- Time Series: horizon (몇 년 뒤까지 예측?) ----
   ts_h <- reactive({
     h <- as.integer(input$ts_horizon)
-    if (is.na(h) || h < 1) h <- 5L
-    if (h > 10L) h <- 10L   # max 10년으로 제한
+    if (is.na(h) || h < 1) h <- 3L   # 이상하면 기본 3년
+    if (h > 5L) h <- 5L              # 최대 5년로 제한
     h
   })
   
@@ -1531,7 +1531,7 @@ server <- function(input, output, session) {
         "질병 16번 진료비 지수" = "firebrick"
       )) +
       labs(
-        title    = "출생아수 ~ ARIMA(0, 1, 0) + drift & 65세 이상 인구 ~ ARIMA(0, 2, 0)",
+        title    = "출생아수 ~ ARIMA(0, 1, 0) + drift & 16번 질병 진료비 ~ ARIMA(0, 1, 0) + drift",
         subtitle = sprintf(
           "2008년 = 100, horizon = %d년", h
         ),
@@ -1582,7 +1582,7 @@ server <- function(input, output, session) {
         "질병 5번 진료비 지수" = "firebrick"
       )) +
       labs(
-        title    = "5번 질병 진료비 ~ ARIMA(0, 1, 0) + drift & 16번 질병 진료비 ~ ARIMA(0, 1, 0) + drift",
+        title    = "65세 이상 인구 ~ ARIMA(0, 2, 0) & 5번 질병 진료비 ~ ARIMA(0, 1, 0) + drift",
         subtitle = sprintf(
           "2008년 = 100, horizon = %d년", h
         ),
