@@ -99,6 +99,61 @@ ggplot(df_plot,
 
 - 낮은편인 병: 1, 7, 8, 10, 11, 12
 
+#### 1-1. 연도 구분 없이 하나의 플랏으로
+```{r}
+# A) 연도 통합해서 22대 질병분류별 1인당 진료비 계산
+df_overall <- df_grouped |>
+  group_by(질병분류_22) |>
+  summarise(
+    진료비       = sum(진료비, na.rm = TRUE),
+    진료실인원수 = sum(진료실인원수, na.rm = TRUE),
+    .groups      = "drop"
+  ) |>
+  mutate(
+    진료비_1인당 = 진료비 / 진료실인원수
+  )
+
+# B) 질병분류를 1, 2, ..., 22 순서로 factor 레벨 재지정
+df_overall <- df_overall |>
+  mutate(
+    # df_grouped에서 2023 기준으로 정렬된 factor였으니까,
+    # 일단 숫자로 풀어서 다시 1~22 순서로 정렬
+    질병분류_22 = as.numeric(as.character(질병분류_22))
+  ) |>
+  arrange(질병분류_22) |>
+  mutate(
+    질병분류_22 = factor(질병분류_22,
+                      levels = 질병분류_22)  # 1,2,... 순서 유지
+  )
+
+# C) 전체 기간 기준 하위 10개만 색깔 분류
+df_overall <- df_overall |>
+  mutate(
+    rank_low    = min_rank(진료비_1인당),
+    color_group = if_else(rank_low <= 10, "하위 10개", "기타")
+  )
+
+# D) 플롯: bottom 10만 파란색, 나머지는 회색
+ggplot(df_overall,
+       aes(x = 질병분류_22, y = 진료비_1인당, fill = color_group)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(
+    values = c(
+      "하위 10개" = "steelblue",
+      "기타"      = "grey80"
+    )
+  ) +
+  labs(
+    x = "22대 질병분류",
+    y = "1인당 진료비",
+    title = "22대 질병분류별 1인당 진료비 (전체 연도 합산 기준)"
+  )
+
+```
+
+
+
 ### 2. 가장 오랫동안 아픈 병 (만성적 질환) 
 -> 나는 이거는 질병의 '중증도'와도 관련있는 것 같아
 
