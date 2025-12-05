@@ -187,6 +187,24 @@ p_donut <- ggplot(donut_df, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=disea
   theme_void(base_family="NanumGothic") +
   labs(title="질병분류별 환자 수 비중 (Top 10)", fill="질병 코드")
 
+top_10_order_by_cost <- data22 %>%
+  mutate(total_cost_won = 진료비 * 1000) %>%
+  group_by(질병분류_22) %>%
+  summarise(sum_cost = sum(total_cost_won, na.rm = TRUE),
+            sum_patients = sum(진료실인원수, na.rm = TRUE),
+            avg_per_capita_cost = ifelse(sum_patients > 0, sum_cost / sum_patients, 0),
+            .groups="drop") %>%
+  arrange(avg_per_capita_cost) %>% 
+  head(10)
+
+list_df <- top_10_order_by_cost %>%
+  mutate(
+    Rank          = row_number(),
+    Disease_Code  = factor(as.character(질병분류_22), levels = as.character(질병분류_22)),
+    Disease_Label = paste0("질병코드 ", 질병분류_22, "번"),
+    Cost_Label    = paste0(comma(round(avg_per_capita_cost, 0)), "원")
+  )
+
 codes_pretty <- if (is.factor(list_df$Disease_Code)) levels(list_df$Disease_Code) else unique(list_df$Disease_Code)
 
 code_cols <- donut_cols[intersect(names(donut_cols), codes_pretty)]
@@ -240,35 +258,45 @@ patient_growth_comparison <- data22 %>%
 top_10_growth <- patient_growth_comparison %>%
   head(10) %>%
   mutate(
-    highlight_group = ifelse(patient_growth_ratio >= 2.0, "200% 이상 폭증", "100% 이상 증가")
+    highlight_group = case_when(
+      patient_growth_ratio >= 2.0 ~ "200% 이상 폭증",
+      patient_growth_ratio >= 1.0 ~ "100% 이상 증가",
+      TRUE                        ~ "100% 미만 증가"   # 100%보다 작은 애들
+    ),
+    highlight_group = factor(
+      highlight_group,
+      levels = c("200% 이상 폭증", "100% 이상 증가", "100% 미만 증가")
+    )
   )
 
-plot_lollipop <- ggplot(top_10_growth, 
-                        aes(x = reorder(factor(질병분류_22), patient_growth_ratio), 
+plot_lollipop <- ggplot(top_10_growth,
+                        aes(x = reorder(factor(질병분류_22), patient_growth_ratio),
                             y = patient_growth_ratio)) +
   geom_segment(
-    aes(xend = reorder(factor(질병분류_22), patient_growth_ratio), 
-        yend = 0, 
-        color = highlight_group), 
-    linewidth = 1.5 
+    aes(xend = reorder(factor(질병분류_22), patient_growth_ratio),
+        yend = 0,
+        color = highlight_group),
+    linewidth = 1.5
   ) +
   geom_point(
-    aes(color = highlight_group), 
-    size = 5 
+    aes(color = highlight_group),
+    size = 5
   ) +
-
+  
   scale_color_manual(
-    values = c("200% 이상 폭증" = "#FF5733",  
-               "100% 이상 증가" = "#4682B4")  
-  ) +
-
+    values = c(
+      "200% 이상 폭증" = "#FF5733",   # 빨강
+      "100% 이상 증가" = "#4682B4",   # 파랑
+      "100% 미만 증가" = "grey70"     # 회색
+    )
+  )  +
   geom_text(
     aes(label = percent(patient_growth_ratio, 1)), 
     hjust = -0.4, 
     size = 3.5,
     fontface = "bold" 
   ) +
-
+  
   scale_y_continuous(
     labels = percent_format(),
     expand = expansion(mult = c(0, 0.15)) 
@@ -281,7 +309,7 @@ plot_lollipop <- ggplot(top_10_growth,
     y = "환자 수 증가율 (%)",
     color = "증가율 구간" 
   ) +
-
+  
   theme_minimal(base_family = "NanumGothic") + 
   theme(
     legend.position = "bottom", 
