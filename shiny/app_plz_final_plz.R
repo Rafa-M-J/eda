@@ -321,6 +321,20 @@ ui <- navbarPage(
             h3("가장 비싼 병 (1인당 진료비 기준)"),
             plotOutput("top_cost_plot", height = "900px"),
             # 기존: tableOutput("top_cost_table"),
+            tags$div(
+              style = "font-size: 0.9em; color:#555; margin-top: 10px;",
+              HTML("
+    <strong>Color guide</strong><br>
+    <span style='color:#B22222; font-weight:bold;'>Red bars</span> mark the highest values,
+    <span style='color:#4682B4; font-weight:bold;'>blue bars</span> mark the lowest values,
+    and <span style='color:#B3B3B3; font-weight:bold;'>grey bars</span> show the remaining categories.<br><br>
+    
+    The number of highlighted bars depends on the selected Top N:<br>
+    &bull; Top N &le; 10: top 2 and bottom 2<br>
+    &bull; 11 &le; Top N &le; 14: top 2 and bottom 5<br>
+    &bull; 15 &le; Top N &le; 20: top 2 and bottom 10
+  ")
+            ),
             uiOutput("top_cost_table")   # ⬅ 여러 개 테이블을 담을 컨테이너
           ),
           
@@ -328,12 +342,40 @@ ui <- navbarPage(
             "input.analysis_type == 'cheap'",
             h3("가장 싼 병 (1인당 진료비 기준)"),
             plotOutput("top_cheap_plot", height = "900px"),
+            tags$div(
+              style = "font-size: 0.9em; color:#555; margin-top: 10px;",
+              HTML("
+    <strong>Color guide</strong><br>
+    <span style='color:#B22222; font-weight:bold;'>Red bars</span> mark the highest values,
+    <span style='color:#4682B4; font-weight:bold;'>blue bars</span> mark the lowest values,
+    and <span style='color:#B3B3B3; font-weight:bold;'>grey bars</span> show the remaining categories.<br><br>
+    
+    The number of highlighted bars depends on the selected Top N:<br>
+    &bull; Top N &le; 10: top 2 and bottom 2<br>
+    &bull; 11 &le; Top N &le; 14: top 2 and bottom 5<br>
+    &bull; 15 &le; Top N &le; 20: top 2 and bottom 10
+  ")
+            ),
             uiOutput("top_cheap_table")
           ),
           conditionalPanel(
             "input.analysis_type == 'chronic'",
             h3("가장 오랫동안 아픈 병 (1인당 입내원일수 기준)"),
             plotOutput("top_chronic_plot", height = "900px"),
+            tags$div(
+              style = "font-size: 0.9em; color:#555; margin-top: 10px;",
+              HTML("
+    <strong>Color guide</strong><br>
+    <span style='color:#B22222; font-weight:bold;'>Red bars</span> mark the highest values,
+    <span style='color:#4682B4; font-weight:bold;'>blue bars</span> mark the lowest values,
+    and <span style='color:#B3B3B3; font-weight:bold;'>grey bars</span> show the remaining categories.<br><br>
+    
+    The number of highlighted bars depends on the selected Top N:<br>
+    &bull; Top N &le; 10: top 2 and bottom 2<br>
+    &bull; 11 &le; Top N &le; 14: top 2 and bottom 5<br>
+    &bull; 15 &le; Top N &le; 20: top 2 and bottom 10
+  ")
+            ),
             uiOutput("top_chronic_table")   # tableOutput → uiOutput
           ),
           
@@ -341,6 +383,20 @@ ui <- navbarPage(
             "input.analysis_type == 'freq'",
             h3("가장 흔한 병 (진료실 인원수 기준)"),
             plotOutput("top_freq_plot", height = "900px"),
+            tags$div(
+              style = "font-size: 0.9em; color:#555; margin-top: 10px;",
+              HTML("
+    <strong>Color guide</strong><br>
+    <span style='color:#B22222; font-weight:bold;'>Red bars</span> mark the highest values,
+    <span style='color:#4682B4; font-weight:bold;'>blue bars</span> mark the lowest values,
+    and <span style='color:#B3B3B3; font-weight:bold;'>grey bars</span> show the remaining categories.<br><br>
+    
+    The number of highlighted bars depends on the selected Top N:<br>
+    &bull; Top N &le; 10: top 2 and bottom 2<br>
+    &bull; 11 &le; Top N &le; 14: top 2 and bottom 5<br>
+    &bull; 15 &le; Top N &le; 20: top 2 and bottom 10
+  ")
+            ),
             uiOutput("top_freq_table")   # ← tableOutput → uiOutput
           )
         )
@@ -432,6 +488,21 @@ ui <- navbarPage(
             "input.ts_view == 'elderly5'",
             h3("65세 이상 인구 vs 질병 5번 진료비(변화율 지수 with ARIMA prediction)"),
             plotOutput("ts_fc_elderly5_idx", height = "550px")
+          )
+        )
+      )
+    )
+  ),
+  tabPanel(
+    "Presentation",
+    fluidPage(
+      fluidRow(
+        column(
+          width = 12,
+          # 이미지 하나 그냥 크게 넣기
+          tags$img(
+            src   = "presentation_cost.png",
+            style = "width:100%; max-width:1900px; height:auto; display:block; margin:auto;"
           )
         )
       )
